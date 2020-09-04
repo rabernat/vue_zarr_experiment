@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My first Vue app</title>
+  <!-- development version, includes helpful console warnings -->
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+
+
+
+  <div id="app1">
+    <div v-for="array in group.arrays">
+      <zarr-array v-bind="array"></zarr-array>
+    </div>
+    <h2>Group Level Metadata</h2>
+    <zarr-attrs v-bind:attrs="group.attrs"></zarr-attrs>
+  </div>
+
+  <script>
+
+    function parseMeta(meta) {
+      if (!'.zgroup' in meta) {
+        throw "Group doesn't contain the '.zgroup' key."
+      }
+
+      group = {}
+      group['zarr_format'] = meta['.zgroup'].zarr_format
+      group['attrs'] = meta['.zattrs']
+
+      arrays = {}
+      for (const prop in meta) {
+        if (prop.endsWith('/.zarray')) {
+          attrs = meta[prop.replace('.zarray', '.zattrs')]
+          name = prop.split('/.zarray')[0]
+          array = {
+            name: name,
+            shape: meta[prop].shape,
+            chunks: meta[prop].chunks,
+            dtype: meta[prop].dtype,
+            attrs: attrs
+          }
+          arrays[name] = array
+        }
+      }
+      group['arrays'] = arrays
+      return group
+    }
+
+    Vue.component('zarr-array', {
+      props: ['name', 'shape', 'chunks', 'dtype', 'attrs'],
+      template: `
+        <div class="zarr-array">
+          <h3>{{ name }}</h3>
+          <h4>Properties</h4>
+          <dl class="zarr-array-properties">
+            <dt>shape</dt><dd>{{ shape }}</dd>
+            <dt>chunks</dt><dd>{{ chunks }}</dd>
+            <dt>dtype</dt><dd>{{ dtype }}</dd>
+          </dl>
+          <h4>Attributes</h4>
+          <zarr-attrs v-bind:attrs="attrs"></zarr-attrs>
+        </div>
+      `
+    })
+
+
+    Vue.component('zarr-attrs', {
+      props: ['attrs'],
+      template: `
+        <dl class="zarr-attrs">
+          <template v-for="(value, name) in attrs">
+          <dt>{{ name }}</dt><dd>{{ value }}</dd>
+          </template>
+        </dl>
+      `
+    })
+
+    // https://vuejs.org/v2/cookbook/using-axios-to-consume-apis.html
+    var app1 = new Vue({
+      el: '#app1',
+      data () {
+        return {
+          group: null
+        }
+      },
+      mounted () {
+        axios
+          .get('https://storage.googleapis.com/cmip6/CMIP/CAS/CAS-ESM2-0/amip/r2i1p1f1/Amon/tas/gn/.zmetadata')
+          .then(response => (this.group = parseMeta(response.data.metadata)))
+      }
+    })
+
+  </script>
+
+</body>
+</html>
